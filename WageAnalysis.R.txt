@@ -1,0 +1,88 @@
+# Jason Garnett
+# June 7, 2019
+
+
+# Set working directory
+setwd("/Users/Specialk/Desktop/datasets")
+# Read the CSV file.  
+wages <- read.csv("wages.csv")
+# View first 6 rows of the data set
+head(wages)
+# View the wages dataset
+View(wages)
+
+# Identify the rows that have missing values
+wages[!complete.cases(wages),]
+
+# Review the structure of the data
+str(wages)
+
+# View the summary of the data
+summary(wages)
+# After review, I need further review of some of the variables
+summary(wages$education)
+summary(wages$experience)
+summary(wages$wage)
+summary(wages$age)
+
+# Convert most integer variables to factor
+wages$south<-factor(wages$south)
+wages$sex<-factor(wages$sex)
+wages$union<-factor(wages$union)
+wages$race<-factor(wages$race)
+wages$occupation<-factor(wages$occupation)
+wages$sector<-factor(wages$sector)
+wages$marital_status<-factor(wages$marital_status)
+
+# Review the structure of the data
+str(wages)
+
+# Use arules library
+library(arules)
+
+# Discretization to convert all the remaining number and integer variables into discrete variables
+wages$education<-discretize(wages$education, method="fixed", breaks=c(0, 13, 14, 15, 16, 17, 18))
+wages$experience<-discretize(wages$experience, method="fixed", breaks=c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60))
+wages$age<-discretize(wages$age, method="fixed", breaks=c(0, 20, 30, 40, 50, 60, 70))
+wages$wage<-discretize(wages$wage, method="frequency", breaks=4)
+
+# Check results
+View(wages)
+head(wages)
+str(wages)
+summary(wages)
+
+# Run the method with specific parameters. I used wider parameters to get more results
+rules <- apriori(wages, parameter= list(supp=0.1, conf=0.1, minlen=2))
+rules
+inspect(rules[1:10])
+inspect(rules)
+
+# I tried to generate a subset of rules that would contain the wage variable in the rhs using the appearance command and wider parameters
+# rules_wages <- apriori(wages, parameter= list(supp=0.03, conf=0.01, minlen=2), 
+#                appearance=list(lhs="wage=[7.78,11.2)", default="none"))
+
+# Using the subset command, I was able to isolate the wage variable to the right hand side
+rules_wage <- subset(rules, (rhs %in% paste0("wage=", unique(wages$wage))))
+
+rules_wage
+inspect(rules_wage[1:10])
+inspect(rules_wage)
+
+#Sort the rules by lift
+rules.sorted<-sort(rules_wage, by="lift")
+inspect(rules.sorted)
+
+subset.matrix<-is.subset(rules.sorted, rules.sorted)
+subset.matrix[lower.tri(subset.matrix, diag=T)]<-F
+redundant<-colSums(subset.matrix, na.rm=T)>=1
+which(redundant)
+
+# Remove redundant rules
+rules.pruned<-rules.sorted[!redundant]
+# Display remaining rules
+inspect(rules.pruned)
+
+# Plot the rules using a grouped matrix
+library(arulesViz)
+plot(rules.pruned, method = "grouped")
